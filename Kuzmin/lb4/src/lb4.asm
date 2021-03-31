@@ -121,11 +121,12 @@ outputAL proc
 			ret 
 outputAL ENDP
 ;-----------------------------
-SET_INTERRUPT PROC FAR	
+SET_INTERRUPT PROC NEAR	
 
 
 			mov ah, 35h
 			mov al, 1ch
+			int 21h
 			mov keep_cs, es
 			mov keep_ip, bx
 			
