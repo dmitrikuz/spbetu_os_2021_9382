@@ -15,69 +15,82 @@ CODE SEGMENT
 m1:
 ROUT PROC FAR
 			jmp start
-			sum dw 0
 			keep_ip dw 0
 			keep_cs dw 0
 			sign dw 0A35Fh
-			start_adress dw 0		
+			psp dw 0		
 			keep_sp dw 0
 			keep_ss dw 0
 			int9_vect dd 0
 			REQ_KEY db 2h				
 			new_stack dw 32 dup (?)
+			
 			start:
 			mov keep_sp, sp
 			mov keep_ss, ss
-			mov ss, new_stack
-			mov sp, 0
-				
+			mov sp, offset new_stack
+			add sp, 32
 			push ax
+			mov ax, seg new_stack
+			mov ss, ax 
+			pop ax
 		
+			
+			push ax
+			push cx
+			push ds
+			push es
+			
+			
 			in al, 60h
-			cmp al, REQ_KEY  ;обрабывается скан-код для символа '1'
-			je do_req ;если совпадает, то переход к пользовательской обработке прерывания
-				
+			cmp al, REQ_KEY
+			je do_req 
+
+			pop es
+			pop ds
+			pop cx
 			pop ax
 			mov ss, keep_ss
 			mov sp, keep_sp
-			jmp cs:[int9_vect];
 			
-		do_req: 
-			
-			pop ax
-			push ax
-			in al, 61h   ;взять значение порта управления клавиатурой
-			mov ah, al     ; сохранить его
-			or al, 80h    ;установить бит разрешения для клавиатуры
-			out 61h, al    ; и вывести его в управляющий порт
-			xchg ah, al    ;извлечь исходное значение порта
-			out 61h, al    ;и записать его обратно
-			mov al, 20h     ;послать сигнал "конец прерывания"
-			out 20h, al     ; контроллеру прерываний 8259
+			jmp cs:[int9_vect]
 				
-		; символ 'D' записывается в буфер клавиатуры
+			do_req:
+			push ax
+			in al, 61h   
+			mov ah, al    
+			or al, 80h    
+			out 61h, al    
+			xchg ah, al    
+			out 61h, al    
+			mov al, 20h     
+			out 20h, al 
 			pop ax
+						
+			;запись символа 'D' вместо '1' 
+			write:
 			mov ah, 05h
 			mov cl, 'D'
-			mov ch,00h ; 
-			int 16h ;
-			or al, al ; проверка переполнения буфера
-			jnz skip ; если переполнен идем skip
+			int 16h 
+			xor ch, ch
+			or al, al 
+			jnz skip 
 			jmp exrout
 			
-		skip:  ; очистить буфер и повторить
-			push es
-			CLI	
-			xor ax, ax
-			MOV es, ax	
-			MOV al, es:[41AH]	
-			MOV es:[41CH], al
-			STI	
+			skip: 
+			mov es, ax	
+			mov al, es:[41AH]	
+			mov es:[41CH], al
+			jmp write
+			
+			exrout:
 			pop es
-		exrout:
+			pop ds
+			pop cx
+			pop ax
 			mov ss, keep_ss
 			mov sp, keep_sp
-			IRET
+			iret
 ROUT ENDP 
 m2:
 
@@ -98,7 +111,7 @@ SET_INTERRUPT PROC NEAR
 			int 21h
 			mov keep_cs, es
 			mov keep_ip, bx
-			mov int9_vect + 2, es
+			mov word ptr int9_vect[02h], es
 			mov word ptr int9_vect, bx
 
 			
@@ -203,7 +216,7 @@ UNLOAD_INTERRUPTION PROC NEAR
 			
 			call RESTORE_VECTOR
 
-			mov ax,es:start_adress
+			mov ax,es:psp
 			mov es,ax
 			
 			push es
@@ -221,7 +234,7 @@ UNLOAD_INTERRUPTION ENDP
 CHECK_PARAM PROC NEAR
 		
 			push es
-			mov es, start_adress
+			mov es, psp
 			mov cx, 4
 			mov di, 81h
 			mov si, offset param
@@ -245,7 +258,7 @@ MAIN 		PROC FAR
 
 			mov ax,DATA
 			mov ds,ax
-			mov start_adress, es
+			mov psp, es
 			call CHECK_VECTOR
 			mov ah, 4ch
 			int 21h
