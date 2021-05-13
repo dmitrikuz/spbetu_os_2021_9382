@@ -1,5 +1,5 @@
 ASTACK     SEGMENT 		STACK
-          DW 512 DUP (?)   
+          DW 256 DUP (?)   
 ASTACK     ENDS
 
 DATA SEGMENT
@@ -12,7 +12,6 @@ CODE SEGMENT
      .386
 	 ASSUME CS:CODE, DS:DATA, SS:ASTACK
 ; Процедуры
-m1:
 ROUT PROC FAR
 			
 			jmp start
@@ -20,19 +19,23 @@ ROUT PROC FAR
 			keep_ip dw 0
 			keep_cs dw 0
 			sign dw 0A35Fh
-			start_adress dw 0		
+			psp dw 0		
 			keep_sp dw 0
 			keep_ss dw 0
-			new_stack dw 32 dup (?)
+			keep_ax dw 0
+			new_stack db 100 dup (?)
 			start:
 			mov keep_sp, sp
 			mov keep_ss, ss
-			mov ss, new_stack
-			mov sp, 0
+			mov keep_ax, ax
+			mov sp, offset start
+			mov ax, seg new_stack
+			mov ss, ax 
 		
 			push ax
 			push bx
 			push cx
+			push dx
 			
 			call getCurs			
 			push dx
@@ -49,19 +52,16 @@ ROUT PROC FAR
 			pop dx
 			call setCurs
 			
+			pop dx
 			pop cx
 			pop bx
 			POP AX
-			
-			mov al,20h
-			out 20h,al
-			
+		
 			mov ss, keep_ss
 			mov sp, keep_sp
+			mov ax, keep_ax
 			IRET
 ROUT ENDP 
-m2:
-
 WRITE_MSG PROC near
 			push ax
 			mov AH, 09h
@@ -72,7 +72,11 @@ WRITE_MSG ENDP
 
 EAX_TO_DEC PROC near
  	
-			push bx
+			push ebx
+			push di
+			push dx
+			push cx
+			push ax
 			mov ebx, 0Ah
 			mov di, 0
 			mov cx, dx
@@ -102,7 +106,11 @@ print:
 			
 			cmp di, 0
 			jg print
-			pop bx
+			pop ax
+			pop cx
+			pop dx
+			pop di
+			pop ebx
 			ret
 EAX_TO_DEC ENDP
 ;------------------------------- 
@@ -120,7 +128,52 @@ outputAL proc
 			pop ax
 			ret 
 outputAL ENDP
+;----------------------
+setCurs proc
+			push ax
+			push bx
+			mov ah,02h
+			mov bh,0
+			int 10h
+			pop bx
+			pop ax
+			ret
+			
+setCurs ENDP	
+;----------------------
+getCurs proc
+			push ax
+			push bx
+			mov ah,03h
+			mov bh,0
+			int 10h 
+			pop bx
+			pop ax
+			ret
+			
+getCurs ENDP
+;----------------------
+RESTORE_VECTOR PROC NEAR
+
+			CLI
+			PUSH DS
+			push dx
+			push ax
+			MOV DX, es:keep_ip
+			MOV AX, es:keep_cs
+			MOV DS, AX
+			MOV AH, 25H
+			MOV AL, 1CH
+			INT 21H
+			pop ax
+			pop dx
+			POP DS
+			STI
+			RET
+RESTORE_VECTOR ENDP
+end_rout:
 ;-----------------------------
+
 SET_INTERRUPT PROC NEAR	
 
 
@@ -157,10 +210,14 @@ LOAD_TO_RESIDENT PROC NEAR
 			push dx
 			push cx
 			
-			mov dx, 0A00h
+			mov DX,offset end_rout
 			mov cl,4h
 			shr dx,cl
 			inc dx
+			mov ax,cs
+			sub ax, psp
+			add dx,ax
+			xor ax,ax
 			mov ah,31h
 			int 21h
 			
@@ -172,25 +229,6 @@ LOAD_TO_RESIDENT PROC NEAR
 			ret
 
 LOAD_TO_RESIDENT ENDP
-;----------------------
-RESTORE_VECTOR PROC NEAR
-
-			CLI
-			PUSH DS
-			push dx
-			push ax
-			MOV DX, es:keep_ip
-			MOV AX, es:keep_cs
-			MOV DS, AX
-			MOV AH, 25H
-			MOV AL, 1CH
-			INT 21H
-			pop ax
-			pop dx
-			POP DS
-			STI
-			RET
-RESTORE_VECTOR ENDP
 ;------------------
 CHECK_VECTOR PROC NEAR
  
@@ -231,7 +269,7 @@ UNLOAD_INTERRUPTION PROC NEAR
 			
 			call RESTORE_VECTOR
 
-			mov ax,es:start_adress
+			mov ax,es:psp
 			mov es,ax
 			
 			push es
@@ -249,7 +287,7 @@ UNLOAD_INTERRUPTION ENDP
 CHECK_PARAM PROC NEAR
 		
 			push es
-			mov es, start_adress
+			mov es, psp
 			mov cx, 4
 			mov di, 81h
 			mov si, offset param
@@ -269,35 +307,11 @@ CHECK_PARAM PROC NEAR
 			ret
 CHECK_PARAM ENDP
 
-setCurs proc
-			push ax
-			push bx
-			mov ah,02h
-			mov bh,0
-			int 10h
-			pop bx
-			pop ax
-			ret
-			
-setCurs ENDP	
-
-getCurs proc
-			push ax
-			push bx
-			mov ah,03h
-			mov bh,0
-			int 10h 
-			pop bx
-			pop ax
-			ret
-			
-getCurs ENDP
-
 MAIN 		PROC FAR
 
 			mov ax,DATA
 			mov ds,ax
-			mov start_adress, es
+			mov psp, es
 			call CHECK_VECTOR
 			mov ah, 4ch
 			int 21h
