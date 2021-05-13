@@ -11,6 +11,7 @@ ctrlbreak_finish db 13, 10,'Program exitde with ctrlbreak', 13, 10, '$'
 ok_finish db 13, 10,'Program executed sucessfully with code    ', 13, 10, '$'
 bad_finish db 'Program execution failed with code    ', 13, 10, '$'
 prog_name db 'LB2.COM', 0
+psp dw 0
 epb dw 0 ;сегментный адрес среды
     dd 0 ;сегмент и смещение командной строки
     dd 0 ;сегмент и смещение FCB 
@@ -112,7 +113,14 @@ START_PROGRAM PROC NEAR
 			start:
 			;выделение памяти под программу и переход к обработке возможных ошибок
 			push bx
-			mov bx, 800
+			mov bx,offset end_point
+			mov cl,4h
+			shr dx,cl
+			inc dx
+			mov ax,cs
+			sub ax, psp
+			add dx,ax
+			xor ax,ax
 			mov ah,4ah
 			int 21h
 			jc carry
@@ -175,9 +183,11 @@ MAIN 		PROC FAR
 
 			mov ax,DATA
 			mov ds,ax
+			mov psp, es
 			call START_PROGRAM
 			mov ah, 4ch
 			int 21h
+			end_point:
 MAIN 	ENDP
 CODE ENDS
      END MAIN
