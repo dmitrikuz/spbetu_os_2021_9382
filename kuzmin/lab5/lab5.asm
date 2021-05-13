@@ -7,6 +7,7 @@ resident_set db 'Interruption is already loaded' , 13, 10, '$'
 resident_not_set db 'Interruption loaded succesfully', 13, 10, '$'
 unload db 'Interruption unloaded', 13, 10, '$'
 param db ' /un'
+psp dw 0
 DATA ENDS
 CODE SEGMENT
      .386
@@ -17,23 +18,23 @@ ROUT PROC FAR
 			jmp start
 			keep_ip dw 0
 			keep_cs dw 0
-			sign dw 0A35Fh
-			psp dw 0		
+			sign dw 0A35Fh		
 			keep_sp dw 0
+			start_adress dw 0
 			keep_ss dw 0
+			keep_ax dw 0
 			int9_vect dd 0
 			REQ_KEY db 2h				
-			new_stack dw 32 dup (?)
+			new_stack db 64 dup (?)
 			
 			start:
 			mov keep_sp, sp
 			mov keep_ss, ss
+			mov keep_ax, ax
 			mov sp, offset new_stack
-			add sp, 32
-			push ax
+			add sp, 64
 			mov ax, seg new_stack
 			mov ss, ax 
-			pop ax
 		
 			
 			push ax
@@ -52,6 +53,7 @@ ROUT PROC FAR
 			pop ax
 			mov ss, keep_ss
 			mov sp, keep_sp
+			mov ax, keep_ax
 			
 			jmp cs:[int9_vect]
 				
@@ -90,10 +92,29 @@ ROUT PROC FAR
 			pop ax
 			mov ss, keep_ss
 			mov sp, keep_sp
+			mov ax, keep_ax
 			iret
 ROUT ENDP 
-m2:
+;----------------------
+RESTORE_VECTOR PROC NEAR
 
+			CLI
+			PUSH DS
+			push dx
+			push ax
+			MOV DX, es:keep_ip
+			MOV AX, es:keep_cs
+			MOV DS, AX
+			MOV AH, 25H
+			MOV AL, 09h
+			INT 21H
+			pop ax
+			pop dx
+			POP DS
+			STI
+			RET
+RESTORE_VECTOR ENDP
+end_rout:
 WRITE_MSG PROC near
 			push ax
 			mov AH, 09h
@@ -142,10 +163,14 @@ LOAD_TO_RESIDENT PROC NEAR
 			push dx
 			push cx
 			
-			mov dx, 0A00h
+			mov DX,offset end_rout
 			mov cl,4h
 			shr dx,cl
 			inc dx
+			mov ax, cs
+			sub ax, psp
+			add dx,ax
+			xor ax,ax
 			mov ah,31h
 			int 21h
 			
@@ -157,25 +182,6 @@ LOAD_TO_RESIDENT PROC NEAR
 			ret
 
 LOAD_TO_RESIDENT ENDP
-;----------------------
-RESTORE_VECTOR PROC NEAR
-
-			CLI
-			PUSH DS
-			push dx
-			push ax
-			MOV DX, es:keep_ip
-			MOV AX, es:keep_cs
-			MOV DS, AX
-			MOV AH, 25H
-			MOV AL, 09h
-			INT 21H
-			pop ax
-			pop dx
-			POP DS
-			STI
-			RET
-RESTORE_VECTOR ENDP
 ;------------------
 CHECK_VECTOR PROC NEAR
  
@@ -216,7 +222,7 @@ UNLOAD_INTERRUPTION PROC NEAR
 			
 			call RESTORE_VECTOR
 
-			mov ax,es:psp
+			mov ax,es:start_adress
 			mov es,ax
 			
 			push es
@@ -234,7 +240,7 @@ UNLOAD_INTERRUPTION ENDP
 CHECK_PARAM PROC NEAR
 		
 			push es
-			mov es, psp
+			mov es, start_adress
 			mov cx, 4
 			mov di, 81h
 			mov si, offset param
@@ -259,6 +265,7 @@ MAIN 		PROC FAR
 			mov ax,DATA
 			mov ds,ax
 			mov psp, es
+			mov start_adress, es
 			call CHECK_VECTOR
 			mov ah, 4ch
 			int 21h
