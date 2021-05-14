@@ -218,7 +218,7 @@ LOAD_OVERLAY PROC NEAR
 			pop ax
 			ret
 LOAD_OVERLAY ENDP
-GET_PATH_TO_FILE proc near
+GET_PATH_TO_FILE PROC NEAR
 
 				push di
 				push si
@@ -276,7 +276,7 @@ GET_PATH_TO_FILE proc near
 				pop si
 				pop di
 				ret
-GET_PATH_TO_FILE endp
+GET_PATH_TO_FILE ENDP
 MAIN 		PROC FAR
 
 			mov ax,DATA
