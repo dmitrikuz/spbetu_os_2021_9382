@@ -1,6 +1,6 @@
 
 ASTACK     SEGMENT 		STACK
-          DW 512 DUP (?)   
+          DW 300 DUP (?)   
 ASTACK     ENDS
 
 DATA SEGMENT
@@ -11,11 +11,13 @@ ctrlbreak_finish db 13, 10,'Program exitde with ctrlbreak', 13, 10, '$'
 ok_finish db 13, 10,'Program executed sucessfully with code    ', 13, 10, '$'
 bad_finish db 'Program execution failed with code    ', 13, 10, '$'
 prog_name db 'LB2.COM', 0
+file_name_addr dw 0
 psp dw 0
 epb dw 0 ;сегментный адрес среды
     dd 0 ;сегмент и смещение командной строки
     dd 0 ;сегмент и смещение FCB 
     dd 0 ;сегмент и смещение FCB 
+path db 50 dup (0)
 DATA ENDS
 
 
@@ -111,16 +113,14 @@ START_PROGRAM PROC NEAR
 			keep_ds dw 0
 			
 			start:
+			call GET_PATH_TO_FILE
 			;выделение памяти под программу и переход к обработке возможных ошибок
 			push bx
-			mov bx,offset end_point
-			mov cl,4h
-			shr dx,cl
-			inc dx
-			mov ax,cs
-			sub ax, psp
-			add dx,ax
-			xor ax,ax
+			mov bx, offset end_point
+			mov ax, cs
+			add bx, ax
+			shr bx,4h
+			add bx, 40h
 			mov ah,4ah
 			int 21h
 			jc carry
@@ -133,7 +133,7 @@ START_PROGRAM PROC NEAR
 			mov keep_ds, ds
 
 			;загружаем путь к файлу в DS:DX
-			mov dx, offset prog_name 
+			mov dx, offset path
 		
 			;устанавливаем параметры 
 			call SET_EPB 
@@ -178,6 +178,65 @@ START_PROGRAM PROC NEAR
 			exitfromhere:
 			ret
 START_PROGRAM ENDP
+GET_PATH_TO_FILE PROC NEAR
+
+				push di
+				push si
+				push ax
+				push bx
+				push cx
+				push dx
+				push es
+
+
+				mov ax, psp
+				mov es, ax
+				mov es, es:[2ch]
+				mov bx, 0
+
+			continue:
+				inc bx
+				cmp byte ptr es:[bx-1], 0
+				jne continue
+
+				cmp byte ptr es:[bx+1], 0
+				jne continue
+
+				add bx, 2
+				mov di, 0
+
+			check:
+				mov dl, es:[bx]
+				mov byte ptr [path+di], dl
+				add di, 1
+				add bx, 1
+				cmp dl, 0
+				je end_check
+				cmp dl, '\'
+				jne check
+				mov cx, di
+				jmp check
+			end_check:
+				mov di, cx
+				mov si, offset prog_name
+
+			write_end:
+				mov dl, byte ptr [si]
+				mov byte ptr [path+di], dl
+				inc di
+				inc si
+				cmp dl, 0
+				jne write_end
+				
+				pop es
+				pop dx
+				pop cx
+				pop bx
+				pop ax
+				pop si
+				pop di
+				ret
+GET_PATH_TO_FILE ENDP
 
 MAIN 		PROC FAR
 
