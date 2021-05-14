@@ -1,5 +1,5 @@
 ASTACK     SEGMENT 		STACK
-          DW 512 DUP (?)   
+          DW 300 DUP (?)   
 ASTACK     ENDS
 
 DATA SEGMENT
@@ -163,14 +163,11 @@ LOAD_TO_RESIDENT PROC NEAR
 			push dx
 			push cx
 			
-			mov DX,offset end_rout
-			mov cl,4h
-			shr dx,cl
-			inc dx
+			mov dx, offset end_rout
 			mov ax, cs
-			sub ax, psp
-			add dx,ax
-			xor ax,ax
+			add dx, ax
+			shr dx,4h
+			add dx, 1Fh
 			mov ah,31h
 			int 21h
 			
